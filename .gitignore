@@ -1,0 +1,26 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# dbt build artifacts (regenerable via `dbt build`)
+claims_metrics/target/
+claims_metrics/logs/
+claims_metrics/dbt_packages/
+claims_metrics/package-lock.yml
+logs/
+
+# editor backup files
+*~
+
+# DuckDB file itself — regenerable via generate_synthetic_data.py (fixed
+# random seed) + dbt build. Seeds CSVs are the actual committed source data.
+claims_metrics/*.duckdb
+claims_metrics/*.duckdb.wal
+
+# runtime artifacts, not source
+local_sim_cost_log.json
+
+# OS
+.DS_Store

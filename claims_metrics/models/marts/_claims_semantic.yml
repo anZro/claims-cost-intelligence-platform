@@ -1,0 +1,109 @@
+semantic_models:
+  - name: claims
+    description: One row per claim.
+    model: ref('fct_claims')
+    defaults:
+      agg_time_dimension: submitted_date
+    entities:
+      - name: claim
+        type: primary
+        expr: claim_id
+      - name: member
+        type: foreign
+        expr: member_id
+    dimensions:
+      - name: submitted_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: region
+        type: categorical
+    measures:
+      - name: total_spend
+        agg: sum
+        expr: spend
+      - name: claim_count
+        agg: count
+        expr: claim_id
+      - name: denied_claim_count
+        agg: sum
+        expr: case when denied then 1 else 0 end
+      - name: avg_days_to_adjudication
+        agg: average
+        expr: date_diff('day', submitted_date, adjudicated_date)
+
+  - name: member_months
+    description: One row per member per enrolled calendar month.
+    model: ref('fct_member_months')
+    defaults:
+      agg_time_dimension: month_start
+    entities:
+      - name: member_month
+        type: primary
+        expr: member_month_id
+      - name: member
+        type: foreign
+        expr: member_id
+    dimensions:
+      - name: month_start
+        type: time
+        type_params:
+          time_granularity: month
+      - name: region
+        type: categorical
+    measures:
+      - name: member_month_count
+        agg: count
+        expr: member_id
+
+metrics:
+  - name: total_spend
+    description: Total claim spend across all claims.
+    type: simple
+    label: Total Spend
+    type_params:
+      measure: total_spend
+
+  - name: claim_count
+    description: Total number of claims.
+    type: simple
+    label: Claim Count
+    type_params:
+      measure: claim_count
+
+  - name: denied_claims
+    description: Total number of denied claims.
+    type: simple
+    label: Denied Claims
+    type_params:
+      measure: denied_claim_count
+
+  - name: denial_rate
+    description: Share of claims that were denied.
+    type: ratio
+    label: Denial Rate
+    type_params:
+      numerator: denied_claims
+      denominator: claim_count
+
+  - name: days_to_adjudication
+    description: Average days between claim submission and adjudication.
+    type: simple
+    label: Days to Adjudication
+    type_params:
+      measure: avg_days_to_adjudication
+
+  - name: member_months
+    description: Total enrolled member-months.
+    type: simple
+    label: Member Months
+    type_params:
+      measure: member_month_count
+
+  - name: pmpm
+    description: Per-member-per-month spend (total spend / member-months).
+    type: ratio
+    label: PMPM
+    type_params:
+      numerator: total_spend
+      denominator: member_months

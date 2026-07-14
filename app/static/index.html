@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claims Cost Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12181F;
+    --panel: #1B2430;
+    --panel-border: #2A3542;
+    --text: #EDEAE3;
+    --text-dim: #8B93A0;
+    --teal: #4FA88C;
+    --brick: #C1503A;
+    --gold: #C9A227;
+  }
+
+  * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Public Sans', sans-serif;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  h1 {
+    font-family: 'Spectral', serif;
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+
+  h1 .accent { color: var(--gold); }
+
+  .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--teal);
+    border: 1px solid var(--teal);
+    border-radius: 3px;
+    padding: 3px 8px;
+    white-space: nowrap;
+  }
+
+  .badge.mode-mock { color: var(--text-dim); border-color: var(--text-dim); }
+  .badge.mode-local_sim { color: var(--teal); border-color: var(--teal); }
+  .badge.mode-live { color: var(--gold); border-color: var(--gold); }
+
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .empty-state {
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 40px;
+    text-align: center;
+  }
+
+  .turn {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .question {
+    align-self: flex-end;
+    max-width: 85%;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14.5px;
+  }
+
+  .proposal {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+
+  .proposal .row span:first-child {
+    color: var(--text);
+    margin-right: 6px;
+  }
+
+  .gate {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 0;
+  }
+
+  .gate-line {
+    flex: 1;
+    height: 1px;
+    background: var(--panel-border);
+  }
+
+  .gate-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid;
+  }
+
+  .gate-label.pass { color: var(--teal); border-color: var(--teal); }
+  .gate-label.fail { color: var(--brick); border-color: var(--brick); }
+
+  .answer {
+    border-left: 3px solid var(--teal);
+    padding: 4px 14px;
+    font-size: 14.5px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  .answer.rejected { border-left-color: var(--brick); color: var(--text-dim); }
+
+  .cache-tag {
+    align-self: flex-start;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    margin-left: 14px;
+  }
+
+  .thinking {
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+  }
+
+  form {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  input[type="text"] {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 12px 14px;
+    font-family: 'Public Sans', sans-serif;
+    font-size: 14.5px;
+  }
+
+  input[type="text"]:focus {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+  }
+
+  input[type="text"]::placeholder { color: var(--text-dim); }
+
+  button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    background: var(--gold);
+    color: var(--bg);
+    border: none;
+    border-radius: 6px;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+
+  button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Claims Cost <span class="accent">Console</span></h1>
+  <div class="badges">
+    <span class="badge" id="mode-badge">MODE: —</span>
+    <span class="badge">GUARDRAIL: ARMED</span>
+  </div>
+</header>
+
+<div id="log">
+  <p class="empty-state">Ask a question about claims spend, PMPM, denial rate, or days to adjudication.<br>Every question is checked against the semantic layer before it's answered.</p>
+</div>
+
+<form id="ask-form">
+  <input type="text" id="question" placeholder="What was total spend in Region 3 last quarter?" autocomplete="off" required>
+  <button type="submit" id="submit-btn">Ask</button>
+</form>
+
+<script>
+  const log = document.getElementById('log');
+  const form = document.getElementById('ask-form');
+  const input = document.getElementById('question');
+  const submitBtn = document.getElementById('submit-btn');
+  let emptyState = document.querySelector('.empty-state');
+
+  function el(tag, className, text) {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  (async function loadMode() {
+    try {
+      const res = await fetch('/mode');
+      const data = await res.json();
+      const badge = document.getElementById('mode-badge');
+      badge.textContent = 'MODE: ' + data.label;
+      badge.classList.add('mode-' + data.llm_mode);
+    } catch (err) {
+      // non-critical — badge just stays at its default text
+    }
+  })();
+
+  function renderProposal(proposal) {
+    const box = el('div', 'proposal');
+
+    if (!proposal.metric) {
+      const row = el('div', 'row');
+      const candidates = (proposal.candidate_metrics || []).join(', ') || 'none';
+      row.innerHTML = `<span>metric:</span>no clear match — candidates: ${candidates}`;
+      box.appendChild(row);
+      return box;
+    }
+
+    const rows = [
+      ['metric', proposal.metric],
+      ['dimensions', (proposal.dimensions || []).join(', ') || '—'],
+      ['filters', (proposal.filters || []).map(f => `${f.dimension} = ${f.value}`).join(', ') || '—'],
+      ['time_grain', proposal.time_grain || '—'],
+    ];
+    if (proposal.start_date || proposal.end_date) {
+      rows.push(['range', `${proposal.start_date || '?'} → ${proposal.end_date || '?'}`]);
+    }
+    rows.forEach(([k, v]) => {
+      const row = el('div', 'row');
+      row.innerHTML = `<span>${k}:</span>${v}`;
+      box.appendChild(row);
+    });
+    return box;
+  }
+
+  function renderGate(valid) {
+    const gate = el('div', 'gate');
+    const line1 = el('div', 'gate-line');
+    const label = el('div', `gate-label ${valid ? 'pass' : 'fail'}`);
+    label.textContent = valid ? '✓ PASSED GUARDRAIL' : '✕ REJECTED BY GUARDRAIL';
+    const line2 = el('div', 'gate-line');
+    gate.append(line1, label, line2);
+    return gate;
+  }
+
+  async function ask(question) {
+    if (emptyState) { emptyState.remove(); emptyState = null; }
+
+    const turn = el('div', 'turn');
+    turn.appendChild(el('div', 'question', question));
+    const thinking = el('div', 'thinking', 'checking against the semantic layer…');
+    turn.appendChild(thinking);
+    log.appendChild(turn);
+    log.scrollTop = log.scrollHeight;
+
+    try {
+      const res = await fetch('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      const data = await res.json();
+      thinking.remove();
+
+      if (data.proposal) turn.appendChild(renderProposal(data.proposal));
+      turn.appendChild(renderGate(data.valid));
+
+      const answer = el('div', `answer ${data.valid ? '' : 'rejected'}`, data.summary || '(no summary returned)');
+      turn.appendChild(answer);
+
+      if (data.cache_hit) {
+        turn.appendChild(el('div', 'cache-tag', '⚡ served from cache'));
+      }
+    } catch (err) {
+      thinking.remove();
+      turn.appendChild(el('div', 'answer rejected', 'Request failed: ' + err.message));
+    }
+    log.scrollTop = log.scrollHeight;
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const question = input.value.trim();
+    if (!question) return;
+    input.value = '';
+    submitBtn.disabled = true;
+    ask(question).finally(() => { submitBtn.disabled = false; input.focus(); });
+  });
+</script>
+
+</body>
+</html>
