@@ -110,6 +110,64 @@ specific and recurring enough to deserve a specific message.
 
 ---
 
+## How the SQL actually gets written (the LLM never touches it)
+
+The guardrail validates a *proposed* query. It's worth being explicit about
+what happens after validation, since that's the mechanism that makes the
+guardrail's guarantee actually hold — not just "we check the query" but "and
+here's proof the model can never get near the database."
+
+Three steps, three completely separate pieces of code:
+
+1. **The LLM emits JSON.** Its entire output is a small structured object —
+   `{"metric": "total_spend", "dimensions": ["region"], "filters": [...],
+   ...}`. It never sees a database connection, a table name, or a SQL
+   keyword. There is no tool-calling wired up that would let it execute
+   anything even if it tried.
+2. **MetricFlow compiles SQL deterministically.** `query_executor.py` turns
+   the validated JSON into `mf query` CLI arguments — still not SQL, just
+   parameters. MetricFlow's own compiler (open-source, part of
+   `dbt-metricflow`) is what actually generates SQL, reading the metric's
+   definition straight out of `semantic_manifest.json` — which column, which
+   aggregation, which joins — the same way an ORM turns a query object into
+   SQL. This step is 100% deterministic code with zero LLM involvement.
+3. **The generated SQL executes.** Here's the actual compiled output for a
+   `total_spend` query filtered to Region 3, via `mf query --explain`:
+
+   ```sql
+   SELECT
+     metric_time__month
+     , claim__region
+     , SUM(total_spend) AS total_spend
+   FROM (
+     SELECT
+       DATE_TRUNC('month', submitted_date) AS metric_time__month
+       , region AS claim__region
+       , spend AS total_spend
+     FROM "claims_metrics"."main"."fct_claims" claims_src_10000
+   ) subq_2
+   WHERE claim__region = 'Region 3'
+   GROUP BY
+     metric_time__month
+     , claim__region
+   ```
+
+   Every piece of this — `spend AS total_spend`, the `SUM`, the
+   `DATE_TRUNC` — comes from the `total_spend` measure's definition in
+   `_claims_semantic.yml` (`agg: sum, expr: spend`), not from the LLM's
+   output or any code in this project. The LLM supplied parameters, the
+   same way filling out a form supplies parameters to a report generator;
+   it did not write, see, or influence a single line of this SQL.
+
+This rules out the failure mode a lot of "AI on data" systems have: a
+text-to-SQL agent where the model writes and executes its own queries,
+trusting a prompt to keep it well-behaved. There's no prompt-injection or
+hallucination path here that leads to an unvalidated query actually running,
+because the model is never in the execution path at all — only the
+guardrail-approved JSON is.
+
+---
+
 ## Why local_sim mode matters (three real bugs it caught)
 
 The LLM client (`app/llm_client.py`) has three modes, same response shape
@@ -259,8 +317,8 @@ via the community-maintained DuckDB JDBC connector
 ([motherduckdb/duckdb-tableau-connector](https://github.com/motherduckdb/duckdb-tableau-connector)),
 since Tableau has no first-party DuckDB connector.
 
-`![overview dashboard](screenshots/overview-dashboard.png)`
-`![anomaly dashboard](screenshots/anomaly-dashboard.png)`
+`![overview dashboard](screenshots/overview_dashboard.png)`
+`![anomaly dashboard](screenshots/anomaly_dashboard.png)`
 
 Every KPI on the Overview dashboard was independently cross-checked against
 the semantic layer's own output:
@@ -272,16 +330,14 @@ the semantic layer's own output:
 | Denial Rate | 7.90% | 7.90% | ✅ exact |
 | Days to Adjudication | 10.88 | 10.8775 | ✅ exact |
 
-**One open discrepancy, noted honestly rather than hidden:** the Anomaly
-dashboard's Region 3 / April tooltip shows $151K total spend and $739.82
-cost-per-claim, versus $153,739.11 / $746.31 confirmed independently through
-both the semantic layer and raw DuckDB. A consistent ~1.8% gap in the same
-direction on both figures — likely a date-boundary difference between how a
-Tableau field truncates `submitted_date` versus the SQL `date_trunc('month',
-...)` used everywhere else, though the exact cause wasn't pinned down.
-Everything else — claim volume, chart shapes, region/denial/adjudication
-orderings — matched exactly. Worth resolving before treating this dashboard
-as a fully audited artifact.
+**Resolved discrepancy:** an earlier version of the Anomaly dashboard showed
+a stale $151K figure for Region 3/April total spend against a Tableau extract
+that hadn't refreshed — after refreshing, it correctly shows $154K, matching
+the semantic layer's $153,739.11 exactly. One small residual gap remains in
+the same view: **cost per claim** shows $739.82, while total spend ÷ claim
+count for that period ($153,739.11 ÷ 206) works out to $746.31 — about a
+0.9% difference. Everything else — claim volume, chart shapes, region/denial/
+adjudication orderings — matches exactly.
 
 ---
 
@@ -314,8 +370,9 @@ as a fully audited artifact.
   windows are the one exception, expressed via `start_date`/`end_date`.
 - **`live` mode is unimplemented** — intentionally, per the build order
   (prove `local_sim` first). Stubbed gracefully, not half-built.
-- **One unresolved Tableau/semantic-layer discrepancy** (Region 3/April, ~1.8%
-  gap) — see the Tableau section.
+- **Cost-per-claim in the Anomaly dashboard has a small (~0.9%) unexplained
+  gap** from total spend ÷ claim count for the same period — everything else
+  in the dashboard matches the semantic layer exactly.
 
 ---
 
@@ -373,7 +430,6 @@ behave strangely outside an activated venv.
 - Implement `live` mode against a real Anthropic API key, specifically to
   test whether the summarization-faithfulness finding above actually
   resolves with a hosted frontier model.
-- Resolve the Region 3/April Tableau discrepancy.
 - Redis for production-scale caching.
 - structlog observability, matching the sibling `cost-anomaly-monitor`
   project.
